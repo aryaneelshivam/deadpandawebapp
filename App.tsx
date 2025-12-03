@@ -57,9 +57,9 @@ const AppContent = () => {
 
       // If Resource -> Process, check if we exceed instances? 
       // For UX simplicity, we allow drawing the edge, but deadlock detector will validate logically.
-      
+
       const isAllocation = sourceNode.type === 'resource';
-      
+
       const newEdge: Edge = {
         ...params,
         id: `e_${params.source}_${params.target}_${Date.now()}`,
@@ -106,7 +106,7 @@ const AppContent = () => {
         id: getId(),
         type,
         position,
-        data: { 
+        data: {
           label: type === 'process' ? `New Process` : `New Resource`,
           pid: type === 'process' ? `P${Math.floor(Math.random() * 1000)}` : undefined,
           rid: type === 'resource' ? `R${Math.floor(Math.random() * 1000)}` : undefined,
@@ -146,10 +146,10 @@ const AppContent = () => {
 
     // Update nodes visual state based on deadlock result
     setNodes((nds) => nds.map(node => {
-      const isDeadlocked = 
-        result.deadlockedProcessIds.includes(node.id) || 
+      const isDeadlocked =
+        result.deadlockedProcessIds.includes(node.id) ||
         result.deadlockedResourceIds.includes(node.id);
-      
+
       return {
         ...node,
         data: {
@@ -185,10 +185,10 @@ const AppContent = () => {
     })));
     setEdges(eds => eds.map(e => ({
       ...e,
-      animated: e.source.startsWith('p') || (nodes.find(n=>n.id===e.source)?.type === 'process'), // simple heuristic to restore dashed
+      animated: e.source.startsWith('p') || (nodes.find(n => n.id === e.source)?.type === 'process'), // simple heuristic to restore dashed
       style: {
         ...e.style,
-        stroke: (nodes.find(n=>n.id===e.source)?.type === 'resource') ? '#000' : '#b1b1b7',
+        stroke: (nodes.find(n => n.id === e.source)?.type === 'resource') ? '#000' : '#b1b1b7',
         strokeWidth: 1.5
       }
     })));
@@ -198,11 +198,11 @@ const AppContent = () => {
     // Standard Circular Wait Deadlock
     // P1 holds R2, wants R1
     // P2 holds R1, wants R2
-    
+
     // We will visualize it as:
     // P1 requests R1. R1 allocated to P2. P2 requests R2. R2 allocated to P1.
     // Cycle: P1 -> R1 -> P2 -> R2 -> P1
-    
+
     const p1Id = 'p_sample_1';
     const p2Id = 'p_sample_2';
     const r1Id = 'r_sample_1';
@@ -217,32 +217,90 @@ const AppContent = () => {
 
     const newEdges: Edge[] = [
       // P1 requests R1 (Top)
-      { 
-        id: 'e_s1', source: p1Id, target: r1Id, 
-        type: 'default', animated: true, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' }, 
-        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' } 
+      {
+        id: 'e_s1', source: p1Id, target: r1Id,
+        type: 'default', animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' },
+        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' }
       },
       // R1 allocated to P2 (Top -> Right)
-      { 
-        id: 'e_s2', source: r1Id, target: p2Id, 
-        type: 'default', animated: false, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#000' }, 
-        style: { stroke: '#000', strokeWidth: 1.5, strokeDasharray: '0' } 
+      {
+        id: 'e_s2', source: r1Id, target: p2Id,
+        type: 'default', animated: false,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#000' },
+        style: { stroke: '#000', strokeWidth: 1.5, strokeDasharray: '0' }
       },
       // P2 requests R2 (Right -> Bottom)
-      { 
-        id: 'e_s3', source: p2Id, target: r2Id, 
-        type: 'default', animated: true, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' }, 
-        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' } 
+      {
+        id: 'e_s3', source: p2Id, target: r2Id,
+        type: 'default', animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' },
+        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' }
       },
       // R2 allocated to P1 (Bottom -> Left)
-      { 
-        id: 'e_s4', source: r2Id, target: p1Id, 
-        type: 'default', animated: false, 
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#000' }, 
-        style: { stroke: '#000', strokeWidth: 1.5, strokeDasharray: '0' } 
+      {
+        id: 'e_s4', source: r2Id, target: p1Id,
+        type: 'default', animated: false,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#000' },
+        style: { stroke: '#000', strokeWidth: 1.5, strokeDasharray: '0' }
+      },
+    ];
+
+    setNodes(newNodes);
+    setEdges(newEdges);
+    setReport(null);
+    setTimeout(() => reactFlowInstance?.fitView({ padding: 0.2 }), 100);
+  };
+
+  const handleLoadSafeCase = () => {
+    // Safe scenario - No circular wait
+    // P1 holds R1, needs nothing else (can complete)
+    // P2 needs R1 (currently held by P1) and R2
+    // P3 needs R2 (available)
+    // Safe sequence: P3 completes -> P1 completes -> releases R1 -> P2 completes
+
+    const p1Id = 'p_safe_1';
+    const p2Id = 'p_safe_2';
+    const p3Id = 'p_safe_3';
+    const r1Id = 'r_safe_1';
+    const r2Id = 'r_safe_2';
+
+    const newNodes: Node[] = [
+      { id: p1Id, type: 'process', position: { x: 100, y: 100 }, data: { label: 'Process P1', pid: 'P1' } },
+      { id: p2Id, type: 'process', position: { x: 100, y: 250 }, data: { label: 'Process P2', pid: 'P2' } },
+      { id: p3Id, type: 'process', position: { x: 100, y: 400 }, data: { label: 'Process P3', pid: 'P3' } },
+      { id: r1Id, type: 'resource', position: { x: 350, y: 150 }, data: { label: 'Resource R1', rid: 'R1', instances: 1 } },
+      { id: r2Id, type: 'resource', position: { x: 350, y: 350 }, data: { label: 'Resource R2', rid: 'R2', instances: 1 } },
+    ];
+
+    const newEdges: Edge[] = [
+      // R1 allocated to P1
+      {
+        id: 'e_safe1', source: r1Id, target: p1Id,
+        type: 'default', animated: false,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#000' },
+        style: { stroke: '#000', strokeWidth: 1.5, strokeDasharray: '0' }
+      },
+      // P2 requests R1 (held by P1)
+      {
+        id: 'e_safe2', source: p2Id, target: r1Id,
+        type: 'default', animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' },
+        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' }
+      },
+      // P2 requests R2 (available)
+      {
+        id: 'e_safe3', source: p2Id, target: r2Id,
+        type: 'default', animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' },
+        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' }
+      },
+      // P3 requests R2 (available)
+      {
+        id: 'e_safe4', source: p3Id, target: r2Id,
+        type: 'default', animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: '#b1b1b7' },
+        style: { stroke: '#b1b1b7', strokeWidth: 1.5, strokeDasharray: '5 5' }
       },
     ];
 
@@ -256,10 +314,10 @@ const AppContent = () => {
 
   return (
     <div className="flex h-screen w-screen bg-white">
-      <Sidebar onLoadSample={handleLoadSample} />
+      <Sidebar onLoadSample={handleLoadSample} onLoadSafeCase={handleLoadSafeCase} />
       <div className="flex-1 h-full relative" ref={reactFlowWrapper}>
         <div className="absolute top-4 left-4 z-10 bg-white/80 backdrop-blur border border-gray-200 p-2 rounded shadow-sm text-xs text-gray-400">
-           Deadpanda v1.0
+          Deadpanda v1.0
         </div>
         <ReactFlow
           nodes={nodes}
@@ -279,8 +337,8 @@ const AppContent = () => {
           <Controls className="!bg-white !border-gray-200 !shadow-sm [&>button]:!border-gray-100 [&>button:hover]:!bg-gray-50 [&>button]:!text-gray-600" />
         </ReactFlow>
       </div>
-      <Inspector 
-        selectedNode={selectedNode} 
+      <Inspector
+        selectedNode={selectedNode}
         onUpdateNode={onUpdateNode}
         report={report}
         onRunSimulation={handleRunSimulation}
