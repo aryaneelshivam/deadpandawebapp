@@ -1,0 +1,5 @@
+{
+  "name": "Deadpanda",
+  "description": "A Notion-styled Resource Allocation Graph simulator for visualizing and detecting deadlocks in operating systems.",
+  "requestFramePermissions": []
+}
